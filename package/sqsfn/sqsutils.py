@@ -117,8 +117,10 @@ def post(sqs_queue_name: str, data: dict):
   return resp["MessageId"]
 
 
-def listen(poll_interval: int):
+def listen(poll_interval: int = 5):
   """entrypoint for processing queue items
+
+     poll_interval: delay in seconds between each iteration of the listen loop
   """
   logger.info("listening for '%s'", str(QUEUE_LISTENERS.keys()))
 
