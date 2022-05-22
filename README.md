@@ -2,6 +2,10 @@
 
 Python decorator for registering message handlers from Simple Queue Service endpoints.
 
++ decorator register callbacks for specific queues
++ `listen` to iterate over all callbacks, read messages from queues and dispatch
++ `post` to quickly send data to a queue and obtain message ID
+
 
 ## usage
 
