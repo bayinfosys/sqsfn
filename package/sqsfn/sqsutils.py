@@ -22,6 +22,8 @@ def sqs_queue_listener(
     dead_letter: str=None,
     wait_time: int=20,
     max_messages: int=10
+    on_success=None,
+    on_fail=None
   ):
   """decorator to wrap around functions which process queue data
 
@@ -84,8 +86,14 @@ def sqs_queue_listener(
               QueueUrl=sqs_queue_url,
               ReceiptHandle=receipt_handle
           )
+
+          if on_success is not None:
+            on_success(body)
         else:
           logger.debug("'%s' processing returned false", receipt_handle)
+
+          if on_fail is not None:
+            on_fail(body)
 
     # add the wrapper to the queue_listeners set
     logger.debug("adding '%s'[%s] to QUEUE_LISTENERS", str(wrapper.__name__), str(fn.__name__))
