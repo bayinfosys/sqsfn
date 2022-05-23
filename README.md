@@ -50,3 +50,26 @@ def my_example_queue_listener(data_from_queue_c):
 if __name__ == "__main__":
   asyncio.run(sqsfn.listen())
 ```
+
+## success and failure queues
+
+the `on_success` and `on_fail` optional parameters accept a function which
+will be called on successful processing of the message or otherwise.
+
+```python
+import sqsfn
+
+@sqsfn.sqs_queue_listener(
+    sqs_queue_name="my-queue-name",
+    on_success=lambda x: sqsfn.post("my-success-queue", x),
+    on_fail=lambda x: sqsfn.post("my-fail-queue", x)
+)
+def my_example_queue_listener(data_from_queue):
+  """process a queue item"""
+  print("recieved data")
+  return True
+
+
+if __name__ == "__main__":
+  asyncio.run(sqsfn.listen())
+```
