@@ -21,7 +21,7 @@ def sqs_queue_listener(
     sqs_queue_name: str,
     dead_letter: str=None,
     wait_time: int=20,
-    max_messages: int=10
+    max_messages: int=10,
     on_success=None,
     on_fail=None
   ):
