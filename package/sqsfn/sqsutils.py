@@ -19,9 +19,11 @@ QUEUE_LISTENERS = {}
 
 def sqs_queue_listener(
     sqs_queue_name: str,
-    dead_letter: str=None,
     wait_time: int=20,
     max_messages: int=10,
+    visibility_timeout: int=10,
+    validator=None,
+    on_invalid=None,
     on_success=None,
     on_fail=None
   ):
@@ -29,8 +31,22 @@ def sqs_queue_listener(
 
      on error (QueueDoesNotExist, empty queue, etc) no processing is performed
 
-     if callback evaluates to True, the message is deleted from the queue,
-     otherwise, the message remains on the queue.
+     if the decorated functionevaluates to True, the message is deleted from the
+     queue, otherwise, the message remains on the queue.
+
+     sqs_queue_name: name of the queue to poll
+     wait_time: time in seconds to wait for new message
+     max_messages: maximum number of messages to pull from the queue
+     visibility_timeout: time in seconds to block read messages from other queue readers
+     validator: optional function which validates the message body, returns None on invalid message
+     on_invalid: optional function to call when the validator fails
+     on_success: optional function to call when the message is successfully processed
+     on_fail: optional function to call when the message is not successfully processed
+
+     Notes:
+     + if on_invalid or on_fail have been called the message will not be removed from the queue
+     + the validator should return a validated version of the message body or None.
+       The return value is passed to the decorated function if not None.
 
      returns None
   """
@@ -54,7 +70,7 @@ def sqs_queue_listener(
           AttributeNames=["SentTimestamp"],
           MaxNumberOfMessages=max_messages,
           MessageAttributeNames=["All"],
-          VisibilityTimeout=0,
+          VisibilityTimeout=visibility_timeout,
           WaitTimeSeconds=wait_time
       )
 
@@ -70,6 +86,14 @@ def sqs_queue_listener(
         receipt_handle = message["ReceiptHandle"]
 
         logger.debug("'%s': '%s'", message["MessageId"], str(body))
+
+        # validate the message object
+        if validator is not None:
+          body = validator(body)
+          if body is None:
+            if on_invalid:
+              on_invalid(body)
+            continue
 
         # process the message
         try:
