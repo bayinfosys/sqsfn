@@ -7,6 +7,12 @@ Python decorator for registering message handlers from Simple Queue Service endp
 + `post` to quickly send data to a queue and obtain message ID
 
 
+## install
+
+```bash
+pip install bayis-sqs-callback
+```
+
 ## usage
 
 ```python
