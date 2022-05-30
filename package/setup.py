@@ -4,11 +4,11 @@ with open("../README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="sqsfn",
+    name="bayis-sqs-callback",
     version="0.0.1",
     author="ed",
     author_email="ed@bayis.co.uk",
-    description="SQS Item processing callback",
+    description="AWS SQS item processing callback",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/bayinfosys/sqsfn",
