@@ -1,7 +1,6 @@
 #!/bin/bash
 
-pushd package
-
+rm -drf dist/
 python3 -m build || exit 1
 ls -la . dist
 python3 -m twine upload dist/* --verbose || exit 1

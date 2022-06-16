@@ -6,8 +6,7 @@ import inspect
 import boto3
 import botocore
 import json
-
-from time import sleep
+import asyncio
 
 
 logger = logging.getLogger(__name__)
@@ -50,8 +49,12 @@ def sqs_queue_listener(
 
      returns None
   """
+  # validate the inputs
+  assert sqs_queue_name is not None, "sqs_queue_name cannot be none"
+
+  # apply the decorator
   def sqs_queue_listener_decorator(fn):
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
       sqs = boto3.client("sqs",
           aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", None),
           aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", None),
@@ -97,7 +100,10 @@ def sqs_queue_listener(
 
         # process the message
         try:
-          retval = fn(body, *args, **kwargs)
+          if asyncio.iscoroutine(fn):
+            retval = await fn(body, *args, **kwargs)
+          else:
+            retval = fn(body, *args, **kwargs)
         except Exception as e:
           logger.exception("error processing '%s' on '%s'", str(body), str(sqs_queue_name))
           # delete the message or add to dead letter?
@@ -149,17 +155,19 @@ def post(sqs_queue_name: str, data: dict):
   return resp["MessageId"]
 
 
-def listen(poll_interval: int = 5):
+async def listen(poll_interval: int = 5):
   """entrypoint for processing queue items
 
      poll_interval: delay in seconds between each iteration of the listen loop
+
+     NB: poll_interval is added to the sum of all wait_time decorator parameters
   """
   logger.info("listening for '%s'", str(QUEUE_LISTENERS.keys()))
 
   while True:
     for k, v in QUEUE_LISTENERS.items():
       try:
-        retval = v()
+        retval = await v()
       except KeyboardInterrupt as e:
         logger.error("KeyboardInterrupt")
         return
@@ -168,4 +176,4 @@ def listen(poll_interval: int = 5):
         logger.exception("error processing '%s'", k)
         continue
 
-    sleep(poll_interval)
+    await asyncio.sleep(poll_interval)
