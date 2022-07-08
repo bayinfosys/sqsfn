@@ -117,18 +117,21 @@ def sqs_queue_listener(
       async def wrapper(*args, **kwargs):
         sqs = __get_client()
         url = __get_queue_url(sqs, sqs_queue_name)
+
+        if url is None:
+          logger.warning("'%s' unable to fetch url", sqs_queue_name)
+          return None
+
         messages = __get_messages(sqs, url, max_messages=max_messages, wait_time=wait_time, visibility_timeout=visibility_timeout)
 
         if len(messages) == 0:
           return None
-        else:
-          logger.debug("'%s' %i messages for '%s'", sqs_queue_name, len(messages), str(fn.__name__))
 
         # load the messages
         receipts = {m["MessageId"]: m["ReceiptHandle"] for m in messages}
         msg_body = {m["MessageId"]: json.loads(m["Body"]) for m in messages}
         # validate the messages
-        vms = {m: x async for m, x in zip(ms, await asyncio.gather(*[validator(m) for m in msg_body.values()])) if x is not None} if validator is not None else msg_body
+        vms = {m: x for m, x in zip(msg_body, (validator(m) for m in msg_body.values())) if x is not None} if validator is not None else msg_body
 
         # gather the responses
         retvals = await asyncio.gather(*[fn(v, *args, **kwargs) for v in vms.values()], return_exceptions=True)
@@ -137,7 +140,8 @@ def sqs_queue_listener(
         for msg_id, retval in zip(vms, retvals):
           if retval:
             if isinstance(retval, Exception):
-              logger.exception("error processing '%s' on '%s'", str(msg_body[msg_id]), str(sqs_queue_name))
+              logger.exception("'%s' on '%s' error with '%s'", str(fn.__name__), str(sqs_queue_name), str(msg_body[msg_id]))
+              raise retval
               # delete the message or add to dead letter?
             else:
               sqs.delete_message(QueueUrl=url, ReceiptHandle=receipts[msg_id])
@@ -157,8 +161,6 @@ def sqs_queue_listener(
           body = json.loads(message["Body"])
           receipt_handle = message["ReceiptHandle"]
 
-          logger.debug("'%s': '%s'", message["MessageId"], str(body))
-
           # validate the message object
           body = validator(body) if validator is not None else body
 
@@ -171,17 +173,18 @@ def sqs_queue_listener(
             retval = fn(body, *args, **kwargs)
           except Exception as e:
             logger.exception("error processing '%s' on '%s'", str(body), str(sqs_queue_name))
-            # delete the message or add to dead letter?
+            # FIXME: add to dead letter?
             retval = False
-
-          # delete received message from queue if the handler returned True
-          if retval:
-            logger.debug("delete '%s'", message["MessageId"])
-            sqs.delete_message(QueueUrl=url, ReceiptHandle=receipt_handle)
-            on_success(body)
-          else:
-            logger.warning("'%s/%s' returned '%s' for '%s'", sqs_queue_name, message["MessageId"], str(retval), str(body))
-            on_fail(body)
+            raise e
+          finally:
+            # delete received message from queue if the handler returned True
+            if retval:
+              logger.debug("delete '%s'", message["MessageId"])
+              sqs.delete_message(QueueUrl=url, ReceiptHandle=receipt_handle)
+              on_success(body)
+            else:
+              logger.warning("'%s/%s' returned '%s' for '%s'", sqs_queue_name, message["MessageId"], str(retval), str(body))
+              on_fail(body)
 
     # add the wrapper to the queue_listeners set
     logger.debug("listening to '%s' with '%s' to QUEUE_LISTENERS", sqs_queue_name, str(fn.__name__))
@@ -202,6 +205,10 @@ def post(sqs_queue_name: str, data: dict):
   """
   sqs = __get_client()
   queue_url = __get_queue_url(sqs, sqs_queue_name)
+
+  if queue_url is None:
+    logger.warning("could not get url for '%s'", sqs_queue_name)
+    return None
 
   try:
     resp = sqs.send_message(

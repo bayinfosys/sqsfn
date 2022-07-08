@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="bayis-sqs-callback",
-    version="0.0.3",
+    version="0.0.4",
     author="ed",
     author_email="ed@bayis.co.uk",
     description="AWS SQS item processing callback",
